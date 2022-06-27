@@ -1,17 +1,26 @@
 package com.example.ebankbackend2;
 
+import com.example.ebankbackend2.dtos.BankAccountDTO;
+import com.example.ebankbackend2.dtos.CurrentBankAccountDTO;
+import com.example.ebankbackend2.dtos.CustomerDTO;
+import com.example.ebankbackend2.dtos.SavingBankAccountDTO;
 import com.example.ebankbackend2.entities.*;
 import com.example.ebankbackend2.enums.AccountStatus;
 import com.example.ebankbackend2.enums.OperationTye;
+import com.example.ebankbackend2.exceptions.BalanaceNotSufficentException;
+import com.example.ebankbackend2.exceptions.BankAccountNotFoundException;
+import com.example.ebankbackend2.exceptions.CustomerNotFoundException;
 import com.example.ebankbackend2.repositories.AccountOperationRepo;
 import com.example.ebankbackend2.repositories.BankAccountRepo;
 import com.example.ebankbackend2.repositories.CustomerRepo;
+import com.example.ebankbackend2.services.BankAccountService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -21,20 +30,43 @@ public class EbankBackend2Application {
     public static void main(String[] args) {
         SpringApplication.run(EbankBackend2Application.class, args);
     }
-    @Bean
-    CommandLineRunner startm(CustomerRepo custRepo, BankAccountRepo bankRepo, AccountOperationRepo accountOperRepo) {
+    //@Bean
+    CommandLineRunner startm(BankAccountService bankAccountService) {
         return args ->
         {
-            BankAccount bank= bankRepo.findById("166baaeb-fd7f-4c58-b7fa-8be2d133e1e9").orElse(null);
-            if(bank!=null) {
-                System.out.println("Balance "+bank.getBalance() + " customer " + bank.getCustomer().getName() + " status " + bank.getStatus());
-                if (bank instanceof CurrentAccount)
-                    System.out.println(((CurrentAccount) bank).getOverDraft());
-                else
-                    System.out.println(((SavingAccount) bank).getInterestRate());
-            }
-            else
-                System.out.println("nulllll");
+            Stream.of("iniesta","xavi","Busquests").forEach(name->
+            {
+                CustomerDTO c= new CustomerDTO();
+                c.setName(name);
+                c.setEmail(name+"@gmail.com");
+                bankAccountService.saveCustomer( c);
+            });
+            bankAccountService.listCustomer().forEach(cu->{
+                try {
+                    bankAccountService.saveBankCurrentAccount(Math.random()*90000,9000,cu.getId());
+                    bankAccountService.saveBankSavingAccount(Math.random()*9000,300,cu.getId());
+                    List<BankAccountDTO> bankAccounts=bankAccountService.bankAccountList();
+                    for(BankAccountDTO bankAccount:bankAccounts)
+                    {
+                        String acctid;
+                        if(bankAccount instanceof SavingBankAccountDTO)
+                        {
+                            acctid=(((SavingBankAccountDTO) bankAccount).getId());
+                        }
+                        else
+                            acctid=(((CurrentBankAccountDTO) bankAccount).getId());
+
+                        bankAccountService.credit(acctid,1000+Math.random()*12000,"Credit");
+                        bankAccountService.debit(acctid,1000+Math.random()*9000,"Debit");
+                    }
+
+                } catch (CustomerNotFoundException e) {
+                    e.printStackTrace();
+                }
+                catch (BankAccountNotFoundException | BalanaceNotSufficentException e) {
+                    e.printStackTrace();
+                }
+            });
         };
     }
 
